@@ -1,0 +1,83 @@
+FAIRNESS ANALYSIS RESULTS
+=========================
+
+BASELINE MODEL PERFORMANCE
+Accuracy: 0.8080
+
+GENDER FAIRNESS METRICS
+-----------------------
+Before Mitigation:
+Statistical Parity Difference: 0.0577
+Disparate Impact: 1.1187
+Equal Opportunity Difference: 0.0413
+Average Odds Difference: 0.0501
+Accuracy: 0.8080
+
+After Reweighing:
+Statistical Parity Difference: 0.0608
+Disparate Impact: 1.1260
+Equal Opportunity Difference: 0.0474
+Average Odds Difference: 0.0531
+Accuracy: 0.8062
+
+After Reject Option Classification:
+Statistical Parity Difference: -0.0023
+Disparate Impact: 0.9959
+Equal Opportunity Difference: -0.0258
+Average Odds Difference: -0.0096
+Accuracy: 0.8135
+
+RACE FAIRNESS METRICS
+---------------------
+Before Mitigation:
+Statistical Parity Difference: -0.5138
+Disparate Impact: 0.0000
+Equal Opportunity Difference: -0.8070
+Average Odds Difference: -0.4985
+Accuracy: 0.8080
+
+After Reweighing:
+Statistical Parity Difference: -0.5120
+Disparate Impact: 0.0000
+Equal Opportunity Difference: -0.8035
+Average Odds Difference: -0.4967
+Accuracy: 0.8062
+
+After Reject Option Classification:
+Statistical Parity Difference: 0.2362
+Disparate Impact: 1.4597
+Equal Opportunity Difference: 0.1930
+Average Odds Difference: 0.3349
+Accuracy: 0.8062
+
+SUMMARY AND INTERPRETATION
+==========================
+1. Statistical Parity Difference: Values closer to 0 indicate more fairness.
+2. Disparate Impact: Values closer to 1 indicate more fairness.
+3. Equal Opportunity Difference: Values closer to 0 indicate more fairness.
+4. Average Odds Difference: Values closer to 0 indicate more fairness.
+
+Gender Fairness Interpretation:
+- Statistical Parity Difference: Not improved after Reweighing, Improved after ROC
+- Disparate Impact: Not improved after Reweighing, Improved after ROC
+- Equal Opportunity Difference: Not improved after Reweighing, Improved after ROC
+- Average Odds Difference: Not improved after Reweighing, Improved after ROC
+
+Race Fairness Interpretation:
+- Statistical Parity Difference: Improved after Reweighing, Improved after ROC
+- Disparate Impact: Not improved after Reweighing, Improved after ROC
+- Equal Opportunity Difference: Improved after Reweighing, Improved after ROC
+- Average Odds Difference: Improved after Reweighing, Improved after ROC
+
+CONCLUSION
+==========
+This analysis demonstrates how bias mitigation techniques can improve fairness in machine learning models.
+For gender bias, Reject Option Classification was more effective overall in improving fairness metrics.
+For race bias, Reject Option Classification was more effective overall in improving fairness metrics.
+
+Accuracy decreased by 0.0018 with Reweighing and by -0.0055 with Reject Option Classification.
+This illustrates the common tradeoff between model accuracy and fairness.
+
+Recommendation: When deploying models that make predictions about individuals, it's important to 
+consider both performance metrics and fairness metrics. Depending on the specific use case and legal/ethical 
+requirements, different bias mitigation strategies may be appropriate.
