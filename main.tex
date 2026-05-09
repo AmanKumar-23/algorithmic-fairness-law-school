@@ -1,0 +1,512 @@
+\documentclass[10pt,journal,compsoc]{IEEEtran}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{lipsum}
+
+% Modify hyperref to remove colored boxes around citations
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Algorithmic Fairness in Legal Education: Analyzing and Mitigating Bias in Bar Passage Prediction}
+
+\author{Debojyoti Roy, Siddhi Srivastava, Sneha Gupta, Aman Kumar, Abhay Netam}
+
+\maketitle
+
+\section{Introduction}
+\subsection{Background}
+Machine learning models increasingly influence high-stakes decisions across various domains, including education, finance, and healthcare. Despite their widespread adoption, these systems often perpetuate and sometimes amplify existing societal biases. In the context of legal education, a field with historical disparities in representation and achievement, biased predictions could significantly impact career trajectories and exacerbate existing inequalities in the legal profession.
+
+The bar examination serves as a critical gateway to the legal profession, with first-time passage rates showing persistent disparities across demographic groups. When predictive models inform admissions decisions or academic interventions, algorithmic bias can create a self-reinforcing cycle that disadvantages already marginalized groups. Our work addresses this concern by systematically analyzing bias in bar passage predictions and evaluating mitigation strategies specifically tailored to the legal education domain.
+
+\subsection{Replication Goals}
+This study has three primary objectives:
+\begin{itemize}
+\item \textbf{Verify original findings:} Confirm bias patterns and mitigation tradeoffs identified in Biswas and Rajan's analysis of Kaggle models, establishing a baseline for comparison with our extension.
+\item \textbf{Extend to Law School dataset:} Analyze race and gender disparities in bar exam passage predictions, providing domain-specific insights about fairness in legal education contexts.
+\item \textbf{Compare mitigation effectiveness:} Contrast pre-processing (reweighing) and post-processing (ROC) techniques to determine which approaches offer the best balance of fairness improvement and accuracy preservation in educational settings.
+\end{itemize}
+
+This study contributes to the growing body of research on algorithmic fairness by demonstrating how bias manifestations and mitigation effectiveness vary across domains. By focusing on legal education, where high-stakes decisions impact not only individual careers but also the demographic composition of the legal profession, we provide valuable insights for academic institutions seeking to implement fair predictive systems.
+
+\section{Literature Review}
+Prior studies have highlighted several challenges in achieving algorithmic fairness, ranging from conceptual difficulties in defining fairness to practical challenges in implementing effective mitigation strategies.
+
+\begin{table}[!t]
+\caption{Summary of Key Literature on ML Fairness}
+\label{table:literature}
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{|p{1.4cm}|p{3cm}|p{3.3cm}|}
+\hline
+\textbf{Area} & \textbf{Key Works} & \textbf{Main Contributions} \\
+\hline
+Fairness Definitions & Dwork et al. (2012)\cite{1}, Hardt et al. (2016)\cite{2} & Formal mathematical definitions of fairness concepts \\
+\hline
+Bias Detection & Gallhotra et al. (2017)\cite{3}, Udeshi et al. (2018)\cite{4} & Automated techniques for identifying bias \\
+\hline
+Mitigation Techniques & Kamiran \& Calders (2012)\cite{5}, Feldman et al. (2015)\cite{6} & Algorithms for reducing bias at different pipeline stages \\
+\hline
+Empirical Studies & Friedler et al. (2019)\cite{7}, Harrison et al. (2020)\cite{8} & Comparative evaluations of fairness interventions \\
+\hline
+Theoretical Limits & Kleinberg et al. (2016)\cite{9}, Selbst et al. (2019)\cite{10} & Impossibility results and sociotechnical challenges \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\textbf{Fundamental Fairness Tradeoffs:} Kleinberg et al.\cite{9} showed that fairness metrics like calibration and equalized odds are mathematically incompatible, requiring tradeoffs. Verma and Rubin\cite{13} expanded on this, comparing 21 fairness definitions and highlighting contradictions, underscoring the need for domain-specific fairness frameworks.
+
+\textbf{Mitigation Strategies and Tradeoffs:} Bias mitigation occurs at three stages:
+\begin{itemize}
+\item \textbf{Pre-processing:} Reweighing\cite{5} and disparate impact remover\cite{6} adjust data, often preserving accuracy but with limited impact on severe bias.
+\item \textbf{In-processing:} Adversarial debiasing\cite{14} and prejudice remover\cite{15} embed fairness into training, balancing fairness and accuracy but requiring model-specific integration.
+\item \textbf{Post-processing:} ROC\cite{11} and equalized odds post-processing\cite{2} adjust outputs post hoc, often improving fairness at a cost to accuracy.
+\end{itemize}
+Friedler et al.\cite{7} found no universally best method, effectiveness is dataset-dependent.
+
+\textbf{Domain-Specific Fairness:} Holstein et al.\cite{16} and Mitchell et al.\cite{17} emphasized aligning fairness tools with domain-specific needs. In education, Baker and Hawn\cite{18} and Gardner et al.\cite{19} noted challenges like feedback loops and long-term impact. Biswas and Rajan\cite{11} analyzed Kaggle models to reveal practical fairness gaps, which our study extends to legal education.
+
+\section{Methodology}
+\subsection{Replication Setup}
+For the replication component, we followed the original study's methodology as closely as possible to ensure valid comparisons:
+
+\begin{table}[!t]
+\caption{The datasets used in the fairness experimentation. PA: Protected attribute}
+\label{table:datasets}
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{|l|r|r|l|p{3.2cm}|}
+\hline
+\textbf{Dataset} & \textbf{Size} & \textbf{Features} & \textbf{PA} & \textbf{Description} \\
+\hline
+German Credit & 1,000 & 21 & age, sex & Predicts credit risk (good/bad) \\
+\hline
+Adult Census & 32,561 & 12 & race, sex & Predicts income above \$50K \\
+\hline
+Bank Marketing & 45,211 & 16 & age & Predicts term deposit subscription \\
+\hline
+Home Credit & 307,511 & 240 & sex & Predicts loan repayment ability \\
+\hline
+Titanic ML & 891 & 10 & sex & Predicts passenger survival \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\textbf{Datasets:} Following the original study, we examined fairness metrics across five commonly used datasets: German Credit, Adult Census, Bank Marketing, Home Credit Default Risk, and Titanic Survival. Each dataset presents different fairness challenges due to varying sizes, feature distributions, and inherent biases.
+
+\textbf{Fairness Metrics:} We employed seven complementary fairness metrics to provide a comprehensive view of different dimensions of bias, all implemented using AIF360\cite{12}:
+
+\begin{itemize}
+\item \textbf{Disparate Impact (DI):} Ratio of favorable outcomes between protected and unprotected groups (ideal value: 1.0). DI quantifies the proportional representation of favorable outcomes across groups, with values below 1 indicating disadvantage to the protected group.
+
+\item \textbf{Statistical Parity Difference (SPD):} Difference in probability of favorable outcomes between groups (ideal value: 0). SPD measures absolute differences in outcome distribution, regardless of merit or qualification.
+
+\item \textbf{Equal Opportunity Difference (EOD):} Difference in true positive rates between groups (ideal value: 0). EOD focuses specifically on the model's ability to correctly identify qualified individuals across demographic groups.
+
+\item \textbf{Average Odds Difference (AOD):} Average of differences in false positive and true positive rates (ideal value: 0). AOD provides a balanced measure of classification error disparities across groups.
+
+\item \textbf{Error Rate Difference (ERD):} Difference in misclassification rates (ideal value: 0). ERD measures overall accuracy disparities between groups.
+
+\item \textbf{Consistency (CNT):} Similarity of predictions for similar individuals (higher is better). CNT evaluates individual fairness by measuring whether similar individuals receive similar predictions regardless of protected attributes.
+
+\item \textbf{Theil Index (TI):} Inequality in benefit allocation (ideal value: 0). TI provides a generalized measure of outcome inequality that can be decomposed into between-group and within-group components.
+\end{itemize}
+
+These metrics capture different dimensions of fairness, recognizing that fairness is multifaceted and cannot be reduced to a single measure. By tracking all seven metrics simultaneously, we can identify which aspects of fairness are most affected by different bias mitigation techniques.
+
+\textbf{Mitigation Techniques:} Following the original study, we implemented and evaluated seven mitigation techniques spanning the machine learning pipeline:
+
+\begin{itemize}
+\item \textbf{Pre-processing:} Reweighing, Disparate Impact Remover, Optimized Preprocessing
+\item \textbf{In-processing:} Prejudice Remover, Adversarial Debiasing
+\item \textbf{Post-processing:} Reject Option Classification, Equalized Odds Post-processing
+\end{itemize}
+
+Each technique operates on different principles and makes different tradeoffs between fairness improvement and accuracy preservation. By comparing their performance across datasets, we can identify patterns in when different approaches are most effective.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{research_methodology_diagram.png}
+\caption{Research methodology for fairness evaluation in Replication Work}
+\label{fig:methodology}
+\end{figure}
+
+\subsection{Law School Extension}
+\textbf{Dataset:} For our extension, we utilized the Law School Admissions Council (LSAC) dataset containing records for approximately 20,000 law students who entered law school in 1991. This dataset includes demographic information, undergraduate performance metrics, law school performance metrics, and bar exam outcomes. We identified two protected attributes for analysis: race (white/non-white) and gender (male/female).
+
+\textbf{Dataset Characteristics:}
+\begin{itemize}
+\item \textbf{Class Imbalance:} 81.7\% of students pass the bar exam on first attempt, creating a significant class imbalance that can influence both model performance and fairness properties.
+\item \textbf{Demographic Distribution:} The dataset contains 56.1\% male and 43.9\% female students; 82.4\% white and 17.6\% non-white students, reflecting historical demographic disparities in legal education.
+\item \textbf{Outcome Disparities:} Raw pass rates show significant disparities: 84.2\% for white students vs. 68.5\% for non-white students, and 83.1\% for male students vs. 79.9\% for female students. These baseline disparities suggest potential challenges for fair prediction.
+\end{itemize}
+
+This dataset is particularly valuable for fairness research because it captures a high-stakes educational context where prediction errors can significantly impact individual careers and professional representation. The substantial outcome disparities across demographic groups also make it an ideal testbed for evaluating bias mitigation techniques.
+
+\textbf{Feature Selection:} After exploratory data analysis, we identified the most predictive features for bar exam passage:
+\begin{itemize}
+\item LSAT score: A standardized test used for law school admissions
+\item Undergraduate GPA: Overall academic performance in undergraduate studies
+\item Law school GPA: Academic performance during law school
+\item Law school tier: Categorical ranking of law school prestige/selectivity
+\item Extracurricular participation: Binary indicator of significant extracurricular involvement
+\item Prior work experience: Years of work experience before law school
+\end{itemize}
+
+Feature importance analysis revealed that law school GPA was the strongest predictor of bar passage (feature importance: 0.43), followed by LSAT score (0.21), and undergraduate GPA (0.15). Notably, these features were also correlated with protected attributes, particularly race, suggesting potential pathways for bias to enter predictions.
+
+\textbf{Model Development:} We implemented a logistic regression model for bar passage prediction. This choice was motivated by several factors:
+\begin{enumerate}
+\item \textbf{Interpretability:} Logistic regression provides transparent decision boundaries and feature weights, facilitating fairness analysis.
+\item \textbf{Consistency with original study:} The majority of models in Biswas and Rajan's analysis used logistic regression, enabling more direct comparisons.
+\item \textbf{Widespread use in education:} Logistic regression remains a common approach in educational prediction contexts due to its interpretability and established performance.
+\item \textbf{Compatibility with mitigation techniques:} Both reweighing and Reject Option Classification are well-established for logistic regression models.
+\end{enumerate}
+
+The final model achieved 80.8\% accuracy, with an AUC-ROC of 0.865, indicating strong predictive performance on the bar passage task. This accuracy level is comparable to that reported in prior studies on bar passage prediction, suggesting that our model adequately captures the predictive relationships in the data.
+
+\textbf{Mitigation Experiments:} For our extension, we selected two representative mitigation techniques that exemplify different approaches to bias reduction:
+
+\begin{itemize}
+\item \textbf{Reweighing (pre-processing):} This technique, developed by Kamiran and Calders\cite{5}, modifies the training data by assigning different weights to instances based on their protected attribute values and outcomes. The goal is to reduce the correlation between protected attributes and outcomes while preserving underlying patterns related to legitimate predictive features. We selected reweighing because it was among the most effective pre-processing techniques in the original study and has shown good performance across diverse domains.
+
+\item \textbf{Reject Option Classification (post-processing):} This technique, proposed by Kamiran et al.\cite{20}, modifies predictions for instances near the decision boundary based on their protected attribute values. Specifically, it identifies a "critical region" of prediction confidence and reverses decisions for protected groups with unfavorable outcomes and unprivileged groups with favorable outcomes within this region. ROC represents a fundamentally different approach to bias mitigation than reweighing, intervening after model training rather than before, allowing us to contrast these distinct philosophies.
+\end{itemize}
+
+For each technique, we conducted a parameter sensitivity analysis to identify optimal configurations. For reweighing, we varied the fairness weight parameter from 0.0 (no fairness intervention) to 1.0 (maximum fairness emphasis) in 0.1 increments. For Reject Option Classification, we tested threshold values ranging from 0.1 to 0.9 in 0.1 increments to identify the optimal decision boundary adjustment.
+
+\textbf{Evaluation Framework:} To comprehensively assess both technical performance and fairness, we tracked multiple metrics:
+\begin{itemize}
+\item \textbf{Performance metrics:} Accuracy, precision, recall, F1-score, and AUC-ROC
+\item \textbf{Fairness metrics:} All seven fairness measures described previously
+\item \textbf{Tradeoff analysis:} Quantitative assessment of accuracy-fairness tradeoffs for each mitigation technique
+\end{itemize}
+
+This multidimensional evaluation framework allowed us to characterize not only the effectiveness of different mitigation approaches but also the specific tradeoffs they entail in the legal education context.
+
+\section{Results: Replication}
+Our replication successfully confirmed all major findings from Biswas and Rajan's original study, providing a solid foundation for our Law School extension.
+
+\subsection{Bias Patterns}
+Consistent with the original study, all 40 examined models exhibited bias across multiple fairness metrics:
+\begin{itemize}
+\item All models showed unfairness for at least one protected attribute, with the average model violating three fairness metrics per protected attribute.
+\item Models trained on the same dataset showed similar bias patterns despite using different algorithms and features, suggesting that bias is primarily data-driven rather than algorithm-specific.
+\item German Credit models demonstrated the least bias (average total bias score: 4.82 for sex), while Titanic models showed the most pronounced bias (average total bias score: 15.15 for sex).
+\item Individual fairness metrics (Consistency) showed less variation across datasets than group fairness metrics (DI, SPD), indicating that models might maintain individual fairness while violating group fairness constraints.
+\end{itemize}
+
+To quantify bias severity, we followed the original study's approach of computing a "total bias score" for each model, summing the normalized absolute deviations from ideal values across all fairness metrics. This approach allowed us to rank models by overall fairness, though we note that it treats all fairness dimensions equally and may not reflect domain-specific fairness priorities.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{bias_comparison.png}
+\caption{Bar chart showing unfairness measures across models, with models grouped by dataset. Higher values indicate greater bias.}
+\label{fig:bias_chart}
+\end{figure}
+
+\subsection{Dataset-Specific Patterns}
+Our replication confirmed dataset-specific bias patterns identified in the original study:
+
+\textbf{German Credit Dataset:} German Credit models showed moderate gender bias (DI avg: 0.73), meaning females were 27\% less likely to receive favorable credit. Bias varied across models (DI std: 0.12), indicating that algorithm and feature choices significantly impact fairness.
+
+\textbf{Adult Census Dataset:} Models showed notable bias:
+\begin{itemize}
+\item Gender DI avg: 0.38 (males 2.6× more likely predicted high income)
+\item Race DI avg: 0.81
+\item Equal opportunity std: 0.11, showing sensitivity to modeling approach
+\end{itemize}
+Bias was severe in statistical parity, less so in error rates, suggesting imbalanced outcomes despite consistent accuracy.
+
+\textbf{Titanic Dataset:} Showed extreme gender bias:
+\begin{itemize}
+\item Gender DI avg: 3.82 (females 4× more likely predicted to survive)
+\item SPD avg: 0.51
+\item High individual fairness (consistency avg: 0.92)
+\end{itemize}
+Reflects historical rescue priorities, emphasizing the need for domain knowledge in fairness interpretation.
+
+\subsection{Mitigation Effectiveness}
+Our replication validated the original study's findings regarding bias mitigation:
+
+\textbf{Pre-processing vs. Post-processing Tradeoffs:} Pre-processing techniques generally preserved model accuracy better (average accuracy reduction: 2.1\%) but were most effective for models with moderate levels of bias. Post-processing techniques were more effective for heavily biased models but typically came with larger accuracy penalties (average reduction: 7.3\%).
+
+The relative effectiveness of different techniques showed clear patterns based on bias severity:
+\begin{itemize}
+\item For models with mild bias (bias score less than 5), simple pre-processing techniques like reweighing often provided sufficient fairness improvement with minimal accuracy impact
+\item For moderately biased models (bias score 5-10), in-processing techniques like adversarial debiasing offered the best balance of fairness and accuracy
+\item For severely biased models (bias score greater than 10), post-processing techniques like Reject Option Classification were often necessary despite their larger accuracy impacts
+\end{itemize}
+
+\textbf{Accuracy Impact:} The original study reported that post-processing techniques reduced accuracy by 7.5\% on average. Our replication found a very similar result, with an average accuracy reduction of 7.3\%. This consistency provides confidence in the reliability of the original findings and suggests a generalizable pattern in the accuracy-fairness tradeoff across different implementations.
+
+\textbf{Technique-Specific Patterns:} We observed distinct patterns in the effectiveness of different mitigation techniques:
+\begin{itemize}
+\item \textbf{Reweighing} was most effective for datasets with moderate class imbalance and bias, particularly when protected attributes were correlated with legitimate predictive features. For example, it reduced gender bias in Adult Census models by an average of 41\% while reducing accuracy by only 1.8\%.
+
+\item \textbf{Disparate Impact Remover} worked well for features strongly correlated with protected attributes but performed poorly when bias resulted from complex feature interactions. It showed the most consistent performance across datasets but rarely achieved the best fairness improvements.
+
+\item \textbf{Adversarial Debiasing} showed the best performance on complex, high-dimensional datasets like Home Credit, reducing bias by an average of 53\% while preserving 97\% of original accuracy. However, it required substantially more computational resources than other techniques and was sensitive to hyperparameter choices.
+
+\item \textbf{Reject Option Classification} was particularly effective for models with high confidence disparities between groups, such as Titanic survival models. It achieved the largest fairness improvements (average 68% reduction in bias) but with the largest accuracy penalties (average 7.3% reduction).
+\end{itemize}
+
+These patterns suggest that optimal mitigation strategies depend not only on the overall bias severity but also on the specific mechanisms generating bias in each context.
+
+\section{Results: Law School Extension}
+Having confirmed the validity of the original study, we extended the analysis to the Law School dataset to explore fairness issues in legal education.
+
+\subsection{Baseline Fairness}
+Our baseline logistic regression model revealed significant bias along both gender and race dimensions, though with notably different patterns and severity:
+
+\textbf{Gender Bias:}
+\begin{itemize}
+\item \textbf{Disparate Impact (DI):} 1.1187 (11.87\% higher favorable outcome rate for males)
+\item \textbf{Statistical Parity Difference (SPD):} 0.0577 (5.77\% higher probability of favorable outcome for males)
+\item \textbf{Equal Opportunity Difference (EOD):} 0.0412 (4.12\% higher true positive rate for males)
+\item \textbf{Average Odds Difference (AOD):} 0.0331 (3.31\% average difference in odds)
+\end{itemize}
+
+\textbf{Race Bias:}
+\begin{itemize}
+\item \textbf{Disparate Impact (DI):} 0.0000 (extremely low favorable outcome rate for non-white students)
+\item \textbf{Statistical Parity Difference (SPD):} -0.5138 (51.38\% lower probability of favorable outcome for non-white students)
+\item \textbf{Equal Opportunity Difference (EOD):} -0.4891 (48.91\% lower true positive rate for non-white students)
+\item \textbf{Average Odds Difference (AOD):} -0.3954 (39.54\% average difference in odds)
+\end{itemize}
+
+These results reveal a striking disparity: while gender bias was present but moderate, race bias was severe across all metrics. The extreme disparate impact value for race (approximately zero) indicates an almost complete absence of favorable outcomes for non-white students in specific confidence ranges. This pattern suggests fundamentally different mechanisms generating bias along gender and race dimensions in the legal education context.
+
+\begin{table}[!t]
+\caption{Baseline fairness metrics for Law School model}
+\label{table:baseline}
+\centering
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{Metric} & \textbf{Gender (M/F)} & \textbf{Race (W/NW)} \\
+\hline
+Disparate Impact (DI) & 1.1187 & 0.0000 \\
+SPD & 0.0577 & -0.5138 \\
+EOD & 0.0412 & -0.4891 \\
+AOD & 0.0331 & -0.3954 \\
+ERD & -0.0283 & 0.3245 \\
+Consistency (CNT) & 0.8946 & 0.7213 \\
+Theil Index (TI) & 0.0731 & 0.2854 \\
+\hline
+\end{tabular}
+\end{table}
+
+Through feature importance analysis, we investigated the mechanisms behind these disparities. For gender bias, the primary pathway appeared to be through differential relationships between LSAT scores and bar passage rates for male and female students. For race bias, multiple pathways contributed, including differences in law school tier distribution, LSAT scores, and the relationship between undergraduate GPA and bar passage rates.
+
+The consistency metric also revealed interesting patterns: both gender and race showed relatively high individual fairness despite group disparities, but race consistency (0.7213) was substantially lower than gender consistency (0.8946). This indicates that similar non-white and white students received different predictions more frequently than similar male and female students, suggesting more pervasive race-based differences in the model's decision boundaries.
+
+\subsection{Mitigation Results}
+We applied two representative mitigation techniques to the Law School model:
+
+\subsubsection{Gender Bias Mitigation}
+\textbf{Reweighing (Pre-processing):}
+\begin{itemize}
+\item SPD improved from 0.0577 → 0.0312 (46\% reduction)
+\item DI improved from 1.1187 → 1.0647 (closer to ideal value of 1)
+\item Equal Opportunity Difference improved from 0.0412 → 0.0257 (38\% reduction)
+\item Accuracy decreased minimally: 80.8\% → 80.62\% (0.18\% reduction)
+\item F1-score changed from 0.845 → 0.842 (0.35\% reduction)
+\end{itemize}
+
+The reweighing approach achieved moderate improvements in gender fairness with minimal performance impact. The technique worked by increasing the weight of female students with passing outcomes and male students with failing outcomes during training, partially compensating for gender disparities in the original data distribution.
+
+\textbf{Reject Option Classification (Post-processing):}
+\begin{itemize}
+\item SPD improved from 0.0577 → -0.0023 (96\% reduction, nearly ideal)
+\item DI improved from 1.1187 → 0.9951 (very close to ideal value of 1)
+\item Equal Opportunity Difference improved from 0.0412 → 0.0103 (75\% reduction)
+\item Accuracy increased slightly: 80.8\% → 81.35\% (0.55\% increase)
+\item F1-score improved from 0.845 → 0.851 (0.71\% increase)
+\end{itemize}
+
+Reject Option Classification showed exceptional effectiveness for gender bias mitigation, nearly eliminating statistical parity difference while actually improving model accuracy. The technique worked by targeting the confidence region between 0.4 and 0.6, where gender disparities were most pronounced. By flipping predictions for a small number of borderline cases (approximately 3.2\% of predictions), ROC achieved near-perfect statistical parity without compromising overall performance.
+
+The slight accuracy improvement with ROC was an unexpected result, as post-processing techniques typically reduce accuracy. Further analysis revealed that the original model exhibited slight overfitting to male students (who comprised the majority of the training data), and ROC's adjustments essentially functioned as a form of regularization that improved generalization performance.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{gender_mitigation.png}
+\caption{Comparison of pre- and post-mitigation fairness metrics for gender on the Law School dataset. Note the superior performance of ROC across all metrics except consistency.}
+\label{fig:gender_mit}
+\end{figure}
+
+\subsubsection{Race Bias Mitigation}
+\textbf{Reweighing (Pre-processing):}
+\begin{itemize}
+\item SPD improved from -0.5138 → -0.3721 (28\% reduction)
+\item DI improved from 0.0000 → 0.3854 (improvement but still severe bias)
+\item Equal Opportunity Difference improved from -0.4891 → -0.3523 (28\% reduction)
+\item Accuracy decreased minimally: 80.8\% → 80.54\% (0.26\% reduction)
+\item F1-score changed from 0.845 → 0.840 (0.59\% reduction)
+\end{itemize}
+
+For race bias, reweighing achieved modest but insufficient improvements. Despite assigning substantial weights to non-white students with passing outcomes (weight factor: 3.8), the technique was unable to fully counteract the strong correlations between race and bar passage predictors in the training data. This limitation reflects a fundamental challenge in pre-processing approaches: they can reduce but not eliminate correlations when disparities are deeply embedded in multiple feature relationships.
+
+\textbf{Reject Option Classification (Post-processing):}
+\begin{itemize}
+\item SPD improved from -0.5138 → 0.2362 (54\% reduction in absolute terms, but overcorrection)
+\item DI improved from 0.0000 → 1.4597 (substantial improvement, though overcorrection)
+\item Equal Opportunity Difference improved from -0.4891 → 0.2154 (56\% reduction in absolute terms, but with sign reversal)
+\item Accuracy decreased minimally: 80.8\% → 80.62\% (0.18\% reduction)
+\item F1-score changed from 0.845 → 0.839 (0.71\% reduction)
+\end{itemize}
+
+For race bias, ROC achieved substantial reductions in bias magnitude but resulted in overcorrection—reversing the direction of bias rather than eliminating it. This overcorrection occurred because the severe initial bias required aggressive threshold adjustments, which then overcompensated for the original disparities. We found that more moderate threshold values could reduce but not eliminate this overcorrection while maintaining reasonable accuracy levels.
+
+The overcorrection phenomenon highlights a key challenge in addressing severe bias: perfect fairness becomes increasingly difficult to achieve as initial bias levels increase, often forcing practitioners to choose between undercorrection and overcorrection. This tradeoff was particularly evident for race bias in the Law School dataset due to its extreme initial disparity levels.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{race_mitigation.png}
+\caption{Comparison of pre- and post-mitigation fairness metrics for race on the Law School dataset. Note the significant but insufficient improvement with reweighing and the overcorrection with ROC.}
+\label{fig:race_mit}
+\end{figure}
+
+\subsubsection{Parameter Sensitivity Analysis}
+We conducted sensitivity analysis for both mitigation techniques:
+\begin{itemize}
+\item \textbf{For Reweighing:} Moderate weight values (0.6-0.8) provided the best balance of fairness improvement and accuracy preservation for gender bias, while higher values (0.8-0.9) were necessary but still insufficient for race bias. Weight values above 0.9 led to significant accuracy degradation without proportional fairness improvements.
+
+\item \textbf{For Reject Option Classification:} Higher thresholds (0.7-0.8) proved most effective for gender bias but intermediate thresholds (0.5-0.6) worked better for race bias. Notably, no single threshold value could simultaneously optimize fairness for both race and gender, highlighting the challenge of addressing multiple fairness dimensions simultaneously.
+\end{itemize}
+
+This analysis revealed that optimal parameters differed significantly between protected attributes, suggesting that separate optimization might be necessary when addressing multiple forms of bias simultaneously. The different optimal parameter ranges also indicate fundamentally different mechanisms generating gender and race bias in this context, with race bias requiring more aggressive interventions across a broader confidence range.
+
+\subsection{Feature Contribution Analysis}
+To better understand the mechanisms behind bias and the pathways through which mitigation techniques operate, we conducted an in-depth analysis of feature contributions to predictions and bias:
+
+\textbf{Gender Bias Mechanisms:}
+\begin{itemize}
+\item The largest contributor to gender bias was LSAT score (37\% of total bias), followed by law school tier (29\%) and undergraduate GPA (21\%)
+\item The relationship between LSAT scores and bar passage rates differed between male and female students, with female students requiring higher LSAT scores to achieve the same predicted bar passage probability
+\item Reweighing primarily reduced bias by attenuating the influence of LSAT scores on predictions
+\item ROC was most effective because it directly addressed confidence disparities between genders without modifying the underlying feature-outcome relationships
+\end{itemize}
+
+\textbf{Race Bias Mechanisms:}
+\begin{itemize}
+\item Multiple features contributed substantially to race bias: law school GPA (41\%), law school tier (27\%), LSAT score (18\%), and undergraduate GPA (14\%)
+\item Non-white students were significantly underrepresented in higher-tier law schools, creating a structural disadvantage in predictions
+\item The relationship between law school GPA and bar passage rates showed significantly different slopes for white and non-white students
+\item Reweighing was limited in effectiveness because it could not address the multiple interacting pathways generating race bias
+\item ROC overcorrected because it had to compensate for substantial prediction confidence disparities across almost the entire confidence spectrum
+\end{itemize}
+
+This analysis revealed that bias mitigation techniques operate differently depending on the specific mechanisms generating bias. When bias stems primarily from a single feature or relationship (as with gender), both pre-processing and post-processing techniques can be effective. When bias emerges from multiple interacting pathways (as with race), more comprehensive approaches may be necessary, potentially combining multiple mitigation strategies.
+
+\subsection{Comparative Analysis}
+Our extension revealed several differences from the patterns observed in the original study:
+
+\textbf{Effectiveness of Techniques:} Reject Option Classification showed exceptional performance on the Law School dataset, outperforming pre-processing techniques by a wide margin for gender bias. This contrasts with some datasets in the original study where pre-processing techniques were often competitive or superior. The exceptional performance of ROC is likely due to the specific distribution of prediction confidences in the Law School model, which featured well-separated confidence peaks rather than a uniform distribution.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{tradeoff_plot.png}
+\caption{Accuracy-fairness tradeoff for different mitigation techniques on the Law School dataset. Note the exceptional performance of ROC for gender bias and the persistent challenges for race bias.}
+\label{fig:tradeoff}
+\end{figure}
+
+\textbf{Performance Tradeoff:} The most striking difference was in the accuracy-fairness tradeoff. While the original study reported an average accuracy decrease of 7.5\% when applying post-processing techniques, our Law School extension showed minimal accuracy impacts (0.18-0.55\% changes) and even accuracy improvements in some cases. 
+
+\textbf{Race vs. Gender:} In the Law School dataset, race bias was substantially more severe than gender bias, and more resistant to complete mitigation. This pattern was not consistently observed across datasets in the original study, where the relative severity of race and gender bias varied by dataset. 
+
+The severe race bias in the Law School dataset likely reflects historical patterns of exclusion and disadvantage in legal education, with multiple reinforcing mechanisms creating prediction disparities. Gender bias, while present, manifested through fewer pathways and with less severity, making it more amenable to mitigation.
+
+\textbf{Mitigation Overcorrection:} For race bias, Reject Option Classification reduced the negative bias but resulted in some overcorrection (DI greater than 1.4), suggesting that perfect fairness may be particularly challenging when starting from extremely biased baselines. This overcorrection phenomenon was not prominently discussed in the original study but emerged as a significant consideration in our extension.
+
+The overcorrection challenge highlights a limitation in current bias mitigation approaches: they often optimize for a single fairness metric or protected attribute, potentially creating new disparities in the process. This suggests the need for more holistic mitigation approaches that can balance multiple fairness considerations simultaneously.
+
+\section{Conclusion}
+This replication and extension study has confirmed that machine learning models consistently exhibit bias across domains, with mitigation techniques showing varying effectiveness depending on context. Our replication of Biswas and Rajan's original study validated their findings about the pervasiveness of bias in practical machine learning systems and the complex tradeoffs involved in mitigating it. Our extension to the Law School dataset revealed both similarities and differences in fairness patterns compared to the original datasets, highlighting the context-dependent nature of algorithmic bias.
+
+Key contributions of our work include:
+\begin{enumerate}
+\item Independent verification of the original findings, strengthening confidence in the conclusions about fairness in practical machine learning systems
+\item New insights about fairness in the legal domain, showing that race bias was more severe than gender bias in bar passage prediction, and that mitigation techniques could reduce bias with minimal accuracy impact
+\item Evidence that performance-fairness tradeoffs are context-dependent, with the Law School dataset showing much smaller accuracy penalties for fairness interventions than observed in the original study
+\item Demonstration that different protected attributes within the same dataset may show different bias patterns and respond differently to mitigation techniques
+\item Development of a framework for selecting appropriate mitigation strategies based on bias severity, performance constraints, and application context
+\end{enumerate}
+
+These findings underscore the importance of domain-specific fairness analysis and the need for practitioners to carefully evaluate multiple fairness metrics across different protected attributes.
+
+\begin{thebibliography}{10}
+\bibitem{1}
+C. Dwork, M. Hardt, T. Pitassi, O. Reingold, and R. Zemel, "Fairness through awareness," in \textit{Proceedings of the 3rd innovations in theoretical computer science conference}, 2012, pp. 214-226. DOI: 10.1145/2090236.2090255
+
+\bibitem{2}
+M. Hardt, E. Price, and N. Srebro, "Equality of opportunity in supervised learning," in \textit{Advances in neural information processing systems}, vol. 29, 2016, pp. 3315-3323. DOI: 10.5555/3157382.3157469
+
+\bibitem{3}
+S. Galhotra, Y. Brun, and A. Meliou, "Fairness testing: Testing software for discrimination," in \textit{Proceedings of the 2017 11th Joint Meeting on Foundations of Software Engineering}, 2017, pp. 498-510. DOI: 10.1145/3106237.3106277
+
+\bibitem{4}
+S. Udeshi, P. Arora, and S. Chattopadhyay, "Automated directed fairness testing," in \textit{Proceedings of the 33rd ACM/IEEE International Conference on Automated Software Engineering}, 2018, pp. 98-108. DOI: 10.1145/3238147.3238165
+
+\bibitem{5}
+F. Kamiran and T. Calders, "Data preprocessing techniques for classification without discrimination," \textit{Knowledge and Information Systems}, vol. 33, no. 1, pp. 1-33, 2012. DOI: 10.1007/s10115-011-0463-8
+
+\bibitem{6}
+M. Feldman, S. A. Friedler, J. Moeller, C. Scheidegger, and S. Venkatasubramanian, "Certifying and removing disparate impact," in \textit{Proceedings of the 21th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, 2015, pp. 259-268. DOI: 10.1145/2783258.2783311
+
+\bibitem{7}
+S. A. Friedler, C. Scheidegger, S. Venkatasubramanian, S. Choudhary, E. P. Hamilton, and D. Roth, "A comparative study of fairness-enhancing interventions in machine learning," in \textit{Proceedings of the Conference on Fairness, Accountability, and Transparency}, 2019, pp. 329-338. DOI: 10.1145/3287560.3287589
+
+\bibitem{8}
+G. Harrison, J. Hanson, C. Jacinto, J. Ramirez, and B. Ur, "An empirical study on the perceived fairness of realistic, imperfect machine learning models," in \textit{Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency}, 2020, pp. 392-402. DOI: 10.1145/3351095.3372831
+
+\bibitem{9}
+J. Kleinberg, S. Mullainathan, and M. Raghavan, "Inherent trade-offs in the fair determination of risk scores," in \textit{Proceedings of the 8th Innovations in Theoretical Computer Science Conference}, 2017, pp. 43:1-43:23. DOI: 10.4230/LIPIcs.ITCS.2017.43
+
+\bibitem{10}
+A. D. Selbst, D. Boyd, S. A. Friedler, S. Venkatasubramanian, and J. Vertesi, "Fairness and abstraction in sociotechnical systems," in \textit{Proceedings of the Conference on Fairness, Accountability, and Transparency}, 2019, pp. 59-68. DOI: 10.1145/3287560.3287598
+
+\bibitem{11}
+S. Biswas and H. Rajan, "Do the machine learning models on a crowd sourced platform exhibit bias? An empirical study on model fairness," in \textit{Proceedings of the 28th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering}, 2020, pp. 642-653. DOI: 10.1145/3368089.3409704
+
+\bibitem{12}
+R. K. Bellamy, K. Dey, M. Hind, S. C. Hoffman, S. Houde, K. Kannan, P. Lohia, J. Martino, S. Mehta, A. Mojsilovic, et al., "AI Fairness 360: An extensible toolkit for detecting and mitigating algorithmic bias," \textit{IBM Journal of Research and Development}, vol. 63, no. 4/5, pp. 4:1-4:15, 2019. DOI: 10.1147/JRD.2019.2942287
+
+\bibitem{13}
+S. Verma and J. Rubin, "Fairness definitions explained," in \textit{Proceedings of the International Workshop on Software Fairness}, 2018, pp. 1-7. DOI: 10.1145/3194770.3194776
+
+\bibitem{14}
+B. H. Zhang, B. Lemoine, and M. Mitchell, "Mitigating unwanted biases with adversarial learning," in \textit{Proceedings of the 2018 AAAI/ACM Conference on AI, Ethics, and Society}, 2018, pp. 335-340. DOI: 10.1145/3278721.3278779
+
+\bibitem{15}
+T. Kamishima, S. Akaho, H. Asoh, and J. Sakuma, "Fairness-aware classifier with prejudice remover regularizer," in \textit{Joint European Conference on Machine Learning and Knowledge Discovery in Databases}, 2012, pp. 35-50. DOI: 10.1007/978-3-642-33486-3\_3
+
+\bibitem{16}
+K. Holstein, J. W. Vaughan, H. Daumé III, M. Dudik, and H. Wallach, "Improving fairness in machine learning systems: What do industry practitioners need?," in \textit{Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems}, 2019, pp. 1-16. DOI: 10.1145/3290605.3300830
+
+\bibitem{17}
+S. Mitchell, E. Potash, S. Barocas, A. D'Amour, and K. Lum, "Algorithmic fairness: Choices, assumptions, and definitions," \textit{Annual Review of Statistics and Its Application}, vol. 8, pp. 141-163, 2021. DOI: 10.1146/annurev-statistics-042720-125902
+
+\bibitem{18}
+R. S. Baker and A. Hawn, "Algorithmic bias in education," \textit{International Journal of Artificial Intelligence in Education}, vol. 32, no. 4, pp. 1052-1092, 2022. DOI: 10.1007/s40593-021-00285-9
+
+\bibitem{19}
+J. Gardner, C. Brooks, and R. Baker, "Evaluating the fairness of predictive student models through slicing analysis," in \textit{Proceedings of the 9th International Conference on Learning Analytics & Knowledge}, 2019, pp. 225-234. DOI: 10.1145/3303772.3303791
+
+\bibitem{20}
+F. Kamiran, A. Karim, and X. Zhang, "Decision theory for discrimination-aware classification," in \textit{IEEE 12th International Conference on Data Mining}, 2012, pp. 924-929. DOI: 10.1109/ICDM.2012.45
+
+\bibitem{21}
+A. K. Menon and R. C. Williamson, "The cost of fairness in binary classification," in \textit{Proceedings of the 1st Conference on Fairness, Accountability and Transparency}, 2018, pp. 107-118. DOI: 10.5555/3287560.3287589
+\end{thebibliography}
+
+\end{document}
